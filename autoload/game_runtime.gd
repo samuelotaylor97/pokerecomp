@@ -23,6 +23,7 @@ var pending_new_game_label: String = ""
 ## is fixed for the life of the save, so it is staged with the slot rather than
 ## read back out of the installation's settings once the intro is over.
 var pending_new_game_challenge: StringName = Gen2Rules.CHALLENGE_VANILLA
+var pending_new_game_edition: StringName = Gen2Rules.EDITION_VANILLA
 
 ## This port's title screen, where a console reset lands and CONTINUE is.
 const SAVE_SCENE: String = "res://game/save/save_screen.tscn"
@@ -64,13 +65,16 @@ func begin_new_game(
 	game_id: StringName,
 	slot: int,
 	label: String,
-	challenge: StringName = Gen2Rules.CHALLENGE_VANILLA
+	challenge: StringName = Gen2Rules.CHALLENGE_VANILLA,
+	edition: StringName = Gen2Rules.EDITION_VANILLA
 ) -> void:
 	selected_game_id = game_id
 	pending_new_game_slot = slot
 	pending_new_game_label = label
 	pending_new_game_challenge = challenge if Gen2Rules.CHALLENGES.has(challenge) \
 		else Gen2Rules.CHALLENGE_VANILLA
+	pending_new_game_edition = edition if game_id == RomRegistry.CRYSTAL \
+		and edition == Gen2Rules.EDITION_COMPLETE else Gen2Rules.EDITION_VANILLA
 
 
 ## The staged slot and label, cleared as it is handed over so a second read
@@ -80,10 +84,12 @@ func take_pending_new_game() -> Dictionary:
 		"slot": pending_new_game_slot,
 		"label": pending_new_game_label,
 		"challenge": pending_new_game_challenge,
+		"edition": pending_new_game_edition,
 	}
 	pending_new_game_slot = -1
 	pending_new_game_label = ""
 	pending_new_game_challenge = Gen2Rules.CHALLENGE_VANILLA
+	pending_new_game_edition = Gen2Rules.EDITION_VANILLA
 	return out
 
 var _save: Gen2SaveData = null
@@ -415,7 +421,9 @@ func _activate_rules(save: Gen2SaveData) -> void:
 ## A save that has just been made. The mods are told before it is written, so
 ## whatever a run is built from is in the file the player will load next time,
 ## and the rules it records are the ones it will always be played under.
-func announce_new_save(save: Gen2SaveData, challenge: StringName = &"") -> void:
+func announce_new_save(
+	save: Gen2SaveData, challenge: StringName = &"", edition: StringName = &""
+) -> void:
 	if save != null and save.run_rules == null:
 		save.run_rules = Gen2OptionsStore.current().rules.duplicate_rules()
 	## The one place a challenge is ever written. The settings screen owns the
@@ -424,6 +432,10 @@ func announce_new_save(save: Gen2SaveData, challenge: StringName = &"") -> void:
 	## state a Nuzlocke or a hard run produced is not the state another would.
 	if save != null and save.run_rules != null and Gen2Rules.CHALLENGES.has(challenge):
 		save.run_rules.challenge = challenge
+	if save != null and save.run_rules != null:
+		var chosen := edition if edition == Gen2Rules.EDITION_COMPLETE \
+			and save.game_id == RomRegistry.CRYSTAL else Gen2Rules.EDITION_VANILLA
+		save.run_rules.content_edition = chosen
 	Gen2ModHost.instance().created_save(save)
 	Gen2ModHost.instance().activate_save(save)
 	_activate_rules(save)

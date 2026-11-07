@@ -8,6 +8,10 @@ extends RefCounted
 ## open() made listing three games cost more than entering one.
 
 var gs_ball_event_enabled: bool = false
+var edition_shop_items: Array[int] = []
+var edition_attached: bool = false
+var edition_landing_errors: PackedStringArray = PackedStringArray()
+var edition_statics: Array = []
 var id: StringName = &""
 var sha1: String = ""
 var directory: String = ""
@@ -747,10 +751,24 @@ func world_menu_count() -> int:
 ## outside the static table.
 func world_mart(index: int) -> Dictionary:
 	var rows: Variant = _marts().get("marts", [])
+	var row: Dictionary = {}
 	if rows is Array and index >= 0 and index < (rows as Array).size():
-		return _coerce_service_dictionary((rows as Array)[index])
-	var default_value: Variant = _marts().get("default", {})
-	return _coerce_service_dictionary(default_value)
+		row = _coerce_service_dictionary((rows as Array)[index])
+	else:
+		row = _coerce_service_dictionary(_marts().get("default", {}))
+	return _with_edition_shop(row)
+
+
+func _with_edition_shop(row: Dictionary) -> Dictionary:
+	if edition_shop_items.is_empty() or row.is_empty():
+		return row
+	var copy := row.duplicate(true)
+	var items: Array = (copy.get("items", []) as Array).duplicate()
+	for item: int in edition_shop_items:
+		if not items.has(item):
+			items.append(item)
+	copy["items"] = items
+	return copy
 
 
 ## `GetFruitTreeItem`: the item a tree bears, by the `fruittree` command's own one-based tree id. Zero for an
@@ -1801,7 +1819,9 @@ func learnset(number: int) -> Array:
 ## [code]parameter[/code] means: a level, an item, a held item or a time of day. [code]condition[/code] is
 ## only ever set by [constant Gen2Layout.EVOLVE_STAT].
 func evolutions(number: int) -> Array:
-	return _rows(species(number), "evolutions", ["method", "parameter", "condition", "target"])
+	return _rows(species(number), "evolutions", [
+		"method", "parameter", "condition", "target", "held_item",
+	])
 
 
 ## The moves a species can inherit from its father, in `EggMovePointers`' own order. Empty for the 145 or 146
@@ -4234,6 +4254,10 @@ func has_content_overlay() -> bool:
 
 ## Replaces the mod content this cache answers with. For a tool or a test that needs content of its own
 ## without touching the shared overlay.
+func content_overlay() -> Gen2ContentOverlay:
+	return _overlay
+
+
 func set_content_overlay(overlay: Gen2ContentOverlay) -> void:
 	_overlay = overlay
 

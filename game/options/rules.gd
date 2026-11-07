@@ -89,6 +89,8 @@ const CHALLENGE_NUZLOCKE: StringName = &"nuzlocke"
 const CHALLENGES: Array[StringName] = [
 	CHALLENGE_VANILLA, CHALLENGE_HARD, CHALLENGE_NUZLOCKE,
 ]
+const EDITION_VANILLA: StringName = &"vanilla"
+const EDITION_COMPLETE: StringName = &"complete"
 
 ## What a screen calls each challenge. What each one DOES is
 ## [method challenge_detail], which builds its line rather than storing it so
@@ -136,6 +138,7 @@ static var _active: Gen2Rules = null
 var mode: StringName = MODE_CURRENT
 ## See [constant CHALLENGES]. Fixed for the life of the save that carries it.
 var challenge: StringName = CHALLENGE_VANILLA
+var content_edition: StringName = EDITION_VANILLA
 ## Only the flags moved away from [member mode], so a mode change carries every
 ## flag the player never touched.
 var overrides: Dictionary = {}
@@ -272,6 +275,10 @@ func is_nuzlocke() -> bool:
 	return challenge == CHALLENGE_NUZLOCKE
 
 
+func is_complete() -> bool:
+	return content_edition == EDITION_COMPLETE
+
+
 ## The name a screen shows for [param challenge_name]. Unknown reads as the
 ## cartridge's own game, which is what an unreadable save is played as.
 static func challenge_title(challenge_name: StringName) -> String:
@@ -300,6 +307,7 @@ func duplicate_rules() -> Gen2Rules:
 	var out := Gen2Rules.new()
 	out.mode = mode
 	out.challenge = challenge
+	out.content_edition = content_edition
 	out.overrides = overrides.duplicate()
 	return out
 
@@ -307,7 +315,7 @@ func duplicate_rules() -> Gen2Rules:
 func matches(other: Gen2Rules) -> bool:
 	if other == null:
 		return false
-	if challenge != other.challenge:
+	if challenge != other.challenge or content_edition != other.content_edition:
 		return false
 	for flag: StringName in FLAGS:
 		if reproduces(flag) != other.reproduces(flag):
@@ -321,11 +329,14 @@ func to_dict() -> Dictionary:
 	var flags: Dictionary = {}
 	for flag: StringName in overrides:
 		flags[String(flag)] = bool(overrides[flag])
-	return {
+	var out := {
 		"mode": String(mode),
 		"challenge": String(challenge),
 		"flags": flags,
 	}
+	if content_edition == EDITION_COMPLETE:
+		out["content_edition"] = String(EDITION_COMPLETE)
+	return out
 
 
 ## Clamped rather than refused, the way [method Gen2Options.parse] is: one
@@ -341,6 +352,8 @@ static func parse(raw: Variant) -> Gen2Rules:
 	## here instead, and reads as the cartridge's own game whatever it said.
 	var raw_challenge := StringName(String(row.get("challenge", "")))
 	out.challenge = raw_challenge if CHALLENGES.has(raw_challenge) else CHALLENGE_VANILLA
+	var raw_edition := StringName(String(row.get("content_edition", "")))
+	out.content_edition = EDITION_COMPLETE if raw_edition == EDITION_COMPLETE else EDITION_VANILLA
 	var flags: Variant = row.get("flags", {})
 	if flags is Dictionary:
 		for key: Variant in flags as Dictionary:

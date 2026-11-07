@@ -14,6 +14,7 @@ var _slots: Array = []
 ## Which challenge the new-game form has selected. It is fixed for the life of
 ## the save the form creates, which is why it is asked here and not in Settings.
 var _new_game_challenge: StringName = Gen2Rules.CHALLENGE_VANILLA
+var _new_game_edition: StringName = Gen2Rules.EDITION_VANILLA
 var _pending_replace_action: StringName = &""
 var _pending_import_path: String = ""
 var _pending_sav_base: String = ""
@@ -75,6 +76,7 @@ func open_new_game(slot: int = -1) -> bool:
 	if slot < 0 and _selected_slot < 0 and not open_new_slot():
 		return false
 	_new_game_visible = true
+	_new_game_edition = Gen2Rules.EDITION_VANILLA
 	_refresh_details()
 	return true
 
@@ -90,6 +92,7 @@ func open_new_slot() -> bool:
 		return false
 	_selected_slot = slot
 	_new_game_visible = true
+	_new_game_edition = Gen2Rules.EDITION_VANILLA
 	_refresh_details()
 	return true
 
@@ -98,7 +101,9 @@ func open_new_slot() -> bool:
 ## Nothing is written: `NewGame` reaches `InitializeWorld` only after `OakSpeech`,
 ## so the slot is staged on [GameRuntime] and [Gen2IntroScreen] writes it once the
 ## trainer is named. [param challenge] overrides the form's pick, for a driver.
-func create_new_game(label: String = "", challenge: StringName = &"") -> bool:
+func create_new_game(
+	label: String = "", challenge: StringName = &"", edition: StringName = &""
+) -> bool:
 	if _data == null:
 		_set_status(&"error", "New game unavailable.", "No imported cartridge cache is selected.")
 		return false
@@ -118,7 +123,11 @@ func create_new_game(label: String = "", challenge: StringName = &"") -> bool:
 		return false
 	var chosen: StringName = challenge if Gen2Rules.CHALLENGES.has(challenge) \
 		else _new_game_challenge
-	GameRuntime.begin_new_game(_data.id, _selected_slot, trimmed, chosen)
+	var picked: StringName = edition if edition == Gen2Rules.EDITION_COMPLETE \
+		or edition == Gen2Rules.EDITION_VANILLA else _new_game_edition
+	if _data.id != RomRegistry.CRYSTAL:
+		picked = Gen2Rules.EDITION_VANILLA
+	GameRuntime.begin_new_game(_data.id, _selected_slot, trimmed, chosen, picked)
 	_new_game_visible = false
 	get_tree().change_scene_to_file.call_deferred("res://game/world/intro_screen.tscn")
 	return true
@@ -624,6 +633,7 @@ func _build_new_game_form(body: VBoxContainer) -> void:
 	body.add_child(Gen2LauncherUI.caption(_palette, "Save name"))
 	body.add_child(_name_input)
 	_build_challenge_field(body)
+	_build_edition_field(body)
 	var actions: HFlowContainer = Gen2LauncherUI.actions()
 	body.add_child(actions)
 	actions.add_child(_action("Start game", Gen2LauncherButton.Variant.PRIMARY, &"check", _create_from_form))
@@ -653,13 +663,33 @@ func _build_challenge_field(body: VBoxContainer) -> void:
 	))
 
 
+func _build_edition_field(body: VBoxContainer) -> void:
+	if _data == null or _data.id != RomRegistry.CRYSTAL:
+		_new_game_edition = Gen2Rules.EDITION_VANILLA
+		return
+	var titles: Array = ["Vanilla", "Complete"]
+	var editions: Array[StringName] = [Gen2Rules.EDITION_VANILLA, Gen2Rules.EDITION_COMPLETE]
+	body.add_child(Gen2LauncherUI.choice(
+		_palette, &"shelf", "Crystal", titles,
+		maxi(editions.find(_new_game_edition), 0),
+		func(index: int) -> void:
+			_new_game_edition = editions[index]
+	))
+	body.add_child(Gen2LauncherUI.muted(
+		_palette, "Complete keeps this story and adds the missing species. Vanilla does not."
+	))
+
+
 ## What the run is played under, as the launcher spells it. A slot written
 ## before the challenge existed has no rules block and reads as the cartridge's
 ## own game, which is what it was.
 func _challenge_title(save: Gen2SaveData) -> String:
-	return Gen2Rules.challenge_title(
+	var title := Gen2Rules.challenge_title(
 		save.run_rules.challenge if save.run_rules != null else Gen2Rules.CHALLENGE_VANILLA
 	)
+	if save.run_rules != null and save.run_rules.is_complete():
+		return "%s, Complete" % title
+	return title
 
 
 func _add_nuzlocke_summary(body: VBoxContainer, save: Gen2SaveData) -> void:

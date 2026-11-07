@@ -16,6 +16,7 @@ Slots store persistent Pokémon, storage, world progress, clock, run rules and
 per-mod state. Derived battle stats are rebuilt; volatile battle state is omitted.
 The clock catches up across sessions. Older formats migrate in memory and write
 the current format on the next save; missing historical data is not invented.
+A Crystal new game may set `run.rules.content_edition` to `complete`; a missing key stays vanilla, and other cartridges never write it.
 
 Each slot has primary JSON and `.bak` files with an additive-checksum header.
 Writes update primary then backup; loads try primary then backup and do not

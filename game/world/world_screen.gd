@@ -6339,6 +6339,9 @@ func _on_battle_finished(result: Dictionary) -> void:
 	if _data != null and _data.generation != RomRegistry.GEN1:
 		_world.forget_pack_after_battle()
 	_last_battle_outcome = StringName(result.get("outcome", &""))
+	_world.finish_edition_static(
+		_last_battle_outcome == Gen2WorldBattleAdapter.OUTCOME_CAUGHT
+	)
 	_world.gen1_pikachu_battle_log(result.get("party_log", {}))
 	## `wEnemyMon` outlives the fight; the next transition reads its level.
 	var last_enemy: Variant = result.get("enemy", {})

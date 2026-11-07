@@ -2115,6 +2115,8 @@ func _enemy_flees(side: int, action: Dictionary, events: Array) -> bool:
 	var species: int = wild.base_species()
 	var always: Array[int] = ALWAYS_FLEE_MONS if Gen2WorldState.is_crystal_profile(data) \
 		else GOLD_SILVER_ALWAYS_FLEE_MONS
+	if species in always and Gen2CrystalComplete.roamer_stays(rules, data, species):
+		always = []
 	if not species in always:
 		var roll: int = rng.randi_range(0, 255)
 		if roll >= OFTEN_FLEE_BOUND:

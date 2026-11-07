@@ -214,6 +214,15 @@ func test_an_output_path_inside_the_project_is_refused() -> void:
 		)
 
 
+func test_a_windows_drive_path_is_not_prefixed_with_res() -> void:
+	assert_eq(PokeToolPath.input_path("C:/Games/Crystal.gbc"), "C:/Games/Crystal.gbc")
+	assert_eq(PokeToolPath.input_path("C://Games/Crystal.gbc"), "C:/Games/Crystal.gbc")
+	assert_eq(PokeToolPath.input_path("C:\\Games\\Crystal.gbc"), "C:/Games/Crystal.gbc")
+	assert_eq(PokeToolPath.input_path("roms"), "res://roms")
+	assert_eq(PokeToolPath.input_path("res://roms"), "res://roms")
+	assert_eq(PokeToolPath.input_path("/tmp/Crystal.gbc"), "/tmp/Crystal.gbc")
+
+
 func test_an_output_path_outside_the_project_is_allowed() -> void:
 	var project: String = ProjectSettings.globalize_path("res://").simplify_path()
 	for path: String in [

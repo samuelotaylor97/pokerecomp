@@ -175,6 +175,15 @@ static func shared() -> Gen2ContentOverlay:
 
 ## [method Gen2ModHost.reset]'s, emptied in place so a [GameData] opened before
 ## a reload reads the new mods.
+func fork() -> Gen2ContentOverlay:
+	var out := Gen2ContentOverlay.new()
+	out._defined = _defined.duplicate(true)
+	out._patched = _patched.duplicate(true)
+	out._owners = _owners.duplicate(true)
+	out.revision = revision
+	return out
+
+
 static func reset() -> void:
 	if _shared == null:
 		return

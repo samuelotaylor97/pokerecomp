@@ -21,14 +21,23 @@ static func stone_items(data: GameData) -> Array[int]:
 const TRADE_NO_ITEM: int = 0xFF
 
 static func level_evolution(data: GameData, mon: Gen2BattleMon, time_of_day: int) -> Dictionary:
-	if data == null or mon == null:
+	if data == null or mon == null or mon.item == EVERSTONE:
 		return {}
-	if mon.item == EVERSTONE:
-		return {}
+	var plain: Dictionary = {}
+	var held: Dictionary = {}
 	for row: Dictionary in data.evolutions(mon.species):
-		if _eligible(row, mon, time_of_day):
-			return row.duplicate(true)
-	return {}
+		if not _eligible(row, mon, time_of_day):
+			continue
+		if int(row.get("held_item", 0)) != 0:
+			held = row
+		elif plain.is_empty():
+			plain = row
+	var chosen: Dictionary = held if not held.is_empty() else plain
+	if chosen.is_empty() or int(chosen.get("held_item", 0)) == 0:
+		return chosen
+	var out := chosen.duplicate(true)
+	out["consumes_held_item"] = int(chosen["held_item"])
+	return out
 
 
 ## `.item`, which is the one branch of `EvolveAfterBattle` that never calls
@@ -100,7 +109,10 @@ static func _eligible(row: Dictionary, mon: Gen2BattleMon, time_of_day: int) -> 
 	var method: int = int(row.get("method", 0))
 	var parameter: int = int(row.get("parameter", 0))
 	if method == Gen2Layout.EVOLVE_LEVEL:
-		return mon.level >= parameter
+		if mon.level < parameter:
+			return false
+		var held_item := int(row.get("held_item", 0))
+		return held_item == 0 or mon.item == held_item
 	if method == Gen2Layout.EVOLVE_HAPPINESS:
 		if mon.happiness < HAPPINESS_TO_EVOLVE:
 			return false
