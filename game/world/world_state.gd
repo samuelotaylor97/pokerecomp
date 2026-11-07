@@ -176,6 +176,7 @@ const GS_BALL_FINISHED: int = 5
 var beat_red: int = 0
 var starter_species: int = 0
 var gs_ball_stage: int = GS_BALL_DISABLED
+var _complete_static_cleared: Array[String] = []
 var gs_ball_wait: int = 0
 
 var _event_flags: Dictionary = {}
@@ -510,7 +511,7 @@ static func _seed_counts(
 ## JSON-safe representation of the mutable overworld state. Cartridge records
 ## are deliberately absent because they belong to GameData, not a save.
 func to_dict() -> Dictionary:
-	return {
+	var out := {
 		"beat_red": beat_red, "starter_species": starter_species,
 		"gs_ball_stage": gs_ball_stage, "gs_ball_wait": gs_ball_wait,
 		"event_flags": _event_flags.duplicate(),
@@ -589,6 +590,9 @@ func to_dict() -> Dictionary:
 		"variable_sprites": _variable_sprites.duplicate(),
 		"battle_tower": _battle_tower.to_dict(),
 	}
+	if not _complete_static_cleared.is_empty():
+		out["complete_static_cleared"] = _complete_static_cleared.duplicate()
+	return out
 
 
 ## Rehydrates only the bounded state shape. The selected GameData remains
@@ -656,6 +660,10 @@ static func from_dict(raw: Variant) -> Gen2WorldState:
 	restored.starter_species = maxi(0, int(source.get("starter_species", 0)))
 	restored.gs_ball_stage = clampi(int(source.get("gs_ball_stage", 0)), 0, GS_BALL_FINISHED)
 	restored.gs_ball_wait = clampi(int(source.get("gs_ball_wait", 0)), 0, 1)
+	for raw_id: Variant in _list(source, "complete_static_cleared"):
+		var static_id := String(raw_id)
+		if not static_id.is_empty() and not restored._complete_static_cleared.has(static_id):
+			restored._complete_static_cleared.append(static_id)
 	restored.set_wild_encounter_cooldown(int(source.get("wild_encounter_cooldown", 0)))
 	restored._step_count = int(source.get("step_count", 0)) & 0xFF
 	restored._poison_step_count = int(source.get("poison_step_count", 0)) & 0xFF
@@ -819,6 +827,7 @@ func restore_from_dict(raw: Variant) -> void:
 	starter_species = restored.starter_species
 	gs_ball_stage = restored.gs_ball_stage
 	gs_ball_wait = restored.gs_ball_wait
+	_complete_static_cleared = restored._complete_static_cleared.duplicate()
 	_battle_tower = restored._battle_tower
 	changed.emit()
 
@@ -827,6 +836,17 @@ func restore_from_dict(raw: Variant) -> void:
 ## cartridge would have made to SRAM straight away.
 func battle_tower() -> Gen2BattleTower:
 	return _battle_tower
+
+
+func complete_static_is_cleared(static_id: String) -> bool:
+	return _complete_static_cleared.has(static_id)
+
+
+func clear_complete_static(static_id: String) -> void:
+	if static_id.is_empty() or _complete_static_cleared.has(static_id):
+		return
+	_complete_static_cleared.append(static_id)
+	changed.emit()
 
 
 ## The live link session, edited in place like the tower's record, with WRAM writes.

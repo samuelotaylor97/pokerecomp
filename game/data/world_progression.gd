@@ -55,6 +55,15 @@ static func validate(data: GameData, patches: Dictionary = {}) -> Dictionary:
 
 ## The check ids, ascending, [param patches] reaches with [param held] (`{items, badges}`)
 ## in hand from the start; `{"item": 0}` and `{"badge": -1}` sites hand nothing.
+static func map_reached(data: GameData, group: int, number: int) -> bool:
+	var scratch := _prepared(data, {})
+	if scratch.is_empty():
+		return false
+	var state := _run(scratch)
+	var place := Gen2WorldStory.place(Vector2i(group, number))
+	return _placed(state, {"place": place, "key": str(place), "graph": -1})
+
+
 static func reachable(data: GameData, patches: Dictionary = {}, held: Dictionary = {}) -> Dictionary:
 	var scratch: Dictionary = _prepared(data, patches)
 	if scratch.is_empty():
