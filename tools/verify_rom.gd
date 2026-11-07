@@ -17,7 +17,7 @@ func _initialize() -> void:
 	for raw: String in args:
 		# A bare "roms" is the obvious thing to type, so resolve it against the
 		# project rather than the shell's working directory.
-		var arg: String = raw if raw.contains("://") or raw.begins_with("/") else "res://" + raw
+		var arg := PokeToolPath.input_path(raw)
 		if DirAccess.dir_exists_absolute(arg):
 			paths.append_array(RomVerifier.candidates_in(arg))
 		else:

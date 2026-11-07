@@ -10,6 +10,31 @@ extends RefCounted
 ## does, so globalizing answers the question directly. `user://` is allowed.
 
 
+static func input_path(raw: String) -> String:
+	var path := raw.strip_edges()
+	if path.is_empty() or _drive_prefix(path) < 0:
+		if path.contains("://") or path.begins_with("/") or path.begins_with("\\"):
+			return path
+		return "res://" + path if not path.is_empty() else path
+	var rest := path.substr(2).replace("\\", "/")
+	while rest.begins_with("//"):
+		rest = rest.substr(1)
+	return path.substr(0, 2) + rest
+
+
+static func _drive_prefix(path: String) -> int:
+	if path.length() < 3:
+		return -1
+	var letter := path.unicode_at(0)
+	var is_letter := (letter >= 65 and letter <= 90) or (letter >= 97 and letter <= 122)
+	if not is_letter or path.unicode_at(1) != 58:
+		return -1
+	var slash := path.unicode_at(2)
+	if slash != 47 and slash != 92:
+		return -1
+	return 2
+
+
 ## True when [param path] is refused, having printed why. A tool quits on true.
 static func refuses(path: String) -> bool:
 	var reason: String = refusal(path)

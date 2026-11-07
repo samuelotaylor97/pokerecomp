@@ -25,7 +25,7 @@ func _initialize() -> void:
 
 	var paths: PackedStringArray = []
 	for raw: String in inputs:
-		var path: String = raw if raw.contains("://") or raw.begins_with("/") else "res://" + raw
+		var path := PokeToolPath.input_path(raw)
 		if DirAccess.dir_exists_absolute(path):
 			paths.append_array(RomVerifier.candidates_in(path))
 		else:
