@@ -10,8 +10,21 @@ const DRAGON_SCALE: int = 0x97
 const UP_GRADE: int = 0xAC
 const RAIKOU: int = 243
 const ENTEI: int = 244
+const VULPIX: int = 37
+const MANKEY: int = 56
+const ARTICUNO: int = 144
+const ZAPDOS: int = 145
+const MOLTRES: int = 146
+const MEWTWO: int = 150
 const MEW: int = 151
+const MAREEP: int = 179
+const GIRAFARIG: int = 203
 const CELEBI: int = 251
+const GATE_HIVE: String = "hive"
+const GATE_GLACIER: String = "glacier"
+const GATE_KANTO: String = "kanto"
+const GATE_SIXTEEN: String = "sixteen"
+const GATE_SILVER: String = "silver"
 
 const SHOP_ITEMS: Array[int] = [
 	KINGS_ROCK, METAL_COAT, DRAGON_SCALE, UP_GRADE,
@@ -24,11 +37,19 @@ const GRASS: Array = [
 	{"map": &"RUINS_OF_ALPH_OUTSIDE", "species": [138, 140]},
 	{"map": &"ROUTE_34", "species": [133]},
 	{"map": &"VICTORY_ROAD", "species": [236]},
+	{"map": &"ROUTE_32", "species": [MAREEP]},
+	{"map": &"ROUTE_37", "species": [VULPIX]},
+	{"map": &"ROUTE_43", "species": [GIRAFARIG]},
+	{"map": &"ROUTE_9", "species": [MANKEY]},
 ]
 
 const STATICS: Array = [
-	{"id": "mew", "map": &"SILVER_CAVE_OUTSIDE", "species": MEW, "level": 50},
-	{"id": "celebi", "map": &"ILEX_FOREST", "species": CELEBI, "level": 30},
+	{"id": "mew", "map": &"SILVER_CAVE_OUTSIDE", "species": MEW, "level": 50, "gate": GATE_SILVER},
+	{"id": "mewtwo", "map": &"SILVER_CAVE_ROOM_3", "species": MEWTWO, "level": 70, "gate": GATE_SILVER},
+	{"id": "articuno", "map": &"ICE_PATH_B3F", "species": ARTICUNO, "level": 50, "gate": GATE_GLACIER},
+	{"id": "zapdos", "map": &"POWER_PLANT", "species": ZAPDOS, "level": 50, "gate": GATE_KANTO},
+	{"id": "moltres", "map": &"VICTORY_ROAD", "species": MOLTRES, "level": 50, "gate": GATE_SIXTEEN},
+	{"id": "celebi", "map": &"ILEX_FOREST", "species": CELEBI, "level": 30, "gate": GATE_HIVE},
 ]
 
 
@@ -47,7 +68,95 @@ static func roamer_stays(rules: Gen2Rules, data: GameData, species: int) -> bool
 		and data.id == RomRegistry.CRYSTAL and (species == RAIKOU or species == ENTEI)
 
 
+static func gate_open(state: Gen2WorldState, static_id: String) -> bool:
+	if state == null or state.complete_static_is_cleared(static_id):
+		return false
+	return gate_earned(
+		String(_gate_of(static_id)),
+		state.badge_count(true),
+		state.is_engine_flag_active(Gen2WorldState.ENGINE_HIVEBADGE),
+		state.is_engine_flag_active(Gen2WorldState.ENGINE_GLACIERBADGE),
+		state.hall_of_fame()
+	)
+
+
+static func closure_gate(static_id: String, badges: Dictionary) -> bool:
+	var count := badges.size()
+	return gate_earned(
+		String(_gate_of(static_id)),
+		count,
+		badges.has(_badge_index(Gen2WorldState.ENGINE_HIVEBADGE)),
+		badges.has(_badge_index(Gen2WorldState.ENGINE_GLACIERBADGE)),
+		count >= Gen2WorldState.BADGE_ENGINE_FLAGS.size()
+	)
+
+
+static func gate_earned(
+	gate: String, badge_count: int, hive: bool, glacier: bool, hall: bool
+) -> bool:
+	if gate == GATE_HIVE:
+		return hive
+	if gate == GATE_GLACIER:
+		return glacier
+	if gate == GATE_KANTO:
+		return badge_count >= 8
+	if gate == GATE_SIXTEEN:
+		return badge_count >= Gen2WorldState.BADGE_ENGINE_FLAGS.size()
+	if gate == GATE_SILVER:
+		return hall and badge_count >= Gen2WorldState.BADGE_ENGINE_FLAGS.size()
+	return false
+
+
+static func _gate_of(static_id: String) -> String:
+	for row: Dictionary in STATICS:
+		if String(row.get("id", "")) == static_id:
+			return String(row.get("gate", ""))
+	return ""
+
+
+static func _badge_index(flag: int) -> int:
+	return Gen2WorldState.BADGE_ENGINE_FLAGS.find(flag)
+
+
 static func static_result(world: Gen2WorldAPI, cell: Vector2i) -> Dictionary:
+	var row := _row_at(world, cell)
+	if row.is_empty():
+		return {}
+	var static_id := String(row.get("id", ""))
+	if world._edition_static_prompted != static_id:
+		world._edition_static_prompted = static_id
+		var name := String(world.data.species(int(row.get("species", 0))).get("name", ""))
+		if name.is_empty():
+			name = static_id
+		return {
+			"ok": true,
+			"status": &"waiting",
+			"event": {
+				"type": &"text",
+				"text": "%s is waiting." % name,
+				"prompt": true,
+			},
+		}
+	world._edition_static_id = static_id
+	return {
+		"ok": true,
+		"status": &"waiting",
+		"event": {
+			"type": &"runtime_request",
+			"request": {
+				"kind": &"battle_requested",
+				"values": {
+					"kind": &"wild",
+					"pokemon": int(row.get("species", 0)),
+					"level": int(row.get("level", 1)),
+					"edition_static": static_id,
+				},
+			},
+		},
+	}
+
+
+static func _row_at(world: Gen2WorldAPI, cell: Vector2i) -> Dictionary:
 	if world == null or world.data == null or world.current_map == null \
 			or world.rules == null or not world.rules.is_complete():
 		return {}
@@ -62,26 +171,26 @@ static func static_result(world: Gen2WorldAPI, cell: Vector2i) -> Dictionary:
 		if at != cell:
 			continue
 		var static_id := String(row.get("id", ""))
-		if world.state != null and world.state.complete_static_is_cleared(static_id):
+		if not gate_open(world.state, static_id):
 			return {}
-		world._edition_static_id = static_id
-		return {
-			"ok": true,
-			"status": &"waiting",
-			"event": {
-				"type": &"runtime_request",
-				"request": {
-					"kind": &"battle_requested",
-					"values": {
-						"kind": &"wild",
-						"pokemon": int(row.get("species", 0)),
-						"level": int(row.get("level", 1)),
-						"edition_static": static_id,
-					},
-				},
-			},
-		}
+		return row
 	return {}
+
+
+static func make_object(data: GameData, row: Dictionary, index: int) -> Gen2WorldObject:
+	var species := int(row.get("species", 0))
+	var icon := data.mon_menu_icon(species) if data != null else 0
+	var sprite := data.overworld_icon(icon) if data != null else null
+	if sprite == null:
+		return null
+	var cell: Vector2i = row.get("cell", Vector2i(-1, -1))
+	return Gen2WorldObject.from_event(index, {
+		"sprite": Gen2WorldSprite.SPRITE_POKEMON,
+		"x": cell.x, "y": cell.y,
+		"movement": Gen2WorldObject.MOVEMENT_POKEMON,
+		"object_type": Gen2WorldObject.OBJECTTYPE_SCRIPT,
+		"event_flag": -1,
+	}, sprite)
 
 
 static func _attach(data: GameData) -> void:
@@ -211,6 +320,9 @@ static func _plant_statics(data: GameData) -> void:
 		if cell.x < 0:
 			data.edition_landing_errors.append("%s has no land tile for a static" % String(map_name))
 			continue
+		if data.overworld_icon(data.mon_menu_icon(int(row["species"]))) == null:
+			data.edition_landing_errors.append("%s has no ROM icon" % String(map_name))
+			continue
 		data.edition_statics.append({
 			"id": String(row["id"]),
 			"map": map_name,
@@ -219,18 +331,24 @@ static func _plant_statics(data: GameData) -> void:
 			"cell": cell,
 			"species": int(row["species"]),
 			"level": int(row["level"]),
+			"gate": String(row.get("gate", "")),
 		})
 
 
 static func _static_cell(map: Gen2WorldMap) -> Vector2i:
 	var steps: Array[Vector2i] = [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]
+	var best := Vector2i(-1, -1)
+	var best_score := -1
 	for y: int in map.collision_height:
 		for x: int in map.collision_width:
-			var cell := Vector2i(x, y)
 			if not Gen2WorldCollision.is_walkable(map.collision_at(x, y)):
 				continue
+			var score := 0
 			for step: Vector2i in steps:
-				var beside := cell + step
+				var beside := Vector2i(x, y) + step
 				if Gen2WorldCollision.is_walkable(map.collision_at(beside.x, beside.y)):
-					return cell
-	return Vector2i(-1, -1)
+					score += 1
+			if score > best_score:
+				best_score = score
+				best = Vector2i(x, y)
+	return best

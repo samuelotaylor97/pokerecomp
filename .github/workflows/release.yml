@@ -158,6 +158,11 @@ jobs:
           fi
           printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
 
+      - name: Crystal Complete live coverage
+        env:
+          GODOT_CAP: 180
+        run: tools/crystal_complete_gate.sh /tmp/crystal-complete-251.md
+
       - name: Export
         env:
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore

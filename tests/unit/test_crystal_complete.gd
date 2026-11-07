@@ -121,6 +121,8 @@ func test_unknown_maps_fail_and_landed_species_come_from_the_cache() -> void:
 	Gen2CrystalComplete.sync(data, rules)
 	var errors := "\n".join(data.edition_landing_errors)
 	assert_string_contains(errors, "ROUTE_26")
+	assert_string_contains(errors, "ROUTE_32")
+	assert_string_contains(errors, "ICE_PATH_B3F")
 	assert_false(errors.contains("SILVER_CAVE_OUTSIDE is not in this cache"))
 	assert_false(errors.contains("ILEX_FOREST is not in this cache"))
 	var grass: Dictionary = data.world_encounter(&"grass", 2, 5)
@@ -139,11 +141,87 @@ func test_unknown_maps_fail_and_landed_species_come_from_the_cache() -> void:
 	assert_false(bool(covered["proven"]))
 	var methods: Dictionary = covered["methods"]
 	assert_string_contains(String(methods.get(152, "")), "grass")
-	assert_string_contains(String(methods.get(151, "")), "static")
-	assert_string_contains(String(methods.get(251, "")), "static")
+	assert_false(methods.has(151), "a static is not proof without the story closure")
+	assert_false(methods.has(251))
 	assert_false(methods.has(7))
+	assert_false(bool(covered["proven"]))
 	assert_true((covered["missing"] as Array).has(3))
 	RomCache.clear(directory)
+
+
+func test_statics_are_visible_gated_and_retry_until_caught() -> void:
+	var directory := _write_cache()
+	var data := GameData.open_directory(directory)
+	var rules := Gen2Rules.new()
+	rules.content_edition = Gen2Rules.EDITION_COMPLETE
+	var state := Gen2WorldState.new()
+	var map: Gen2WorldMap = data.world_map_named(&"SILVER_CAVE_OUTSIDE")
+	var closed := Gen2WorldAPI.new(data, map, Gen2WorldTileset.new(), Vector2i(1, 0), state, rules)
+	assert_eq(_edition_objects(closed).size(), 0, "Mew stays hidden before the late unlock")
+	state.set_hall_of_fame(true)
+	for flag: int in Gen2WorldState.BADGE_ENGINE_FLAGS:
+		state.set_engine_flag(flag, true)
+	closed._load_objects()
+	var standing := _edition_objects(closed)
+	assert_eq(standing.size(), 1)
+	var actor: Gen2WorldObject = standing[0]
+	assert_eq(actor.sprite.sprite_type, Gen2WorldSprite.TYPE_MON_ICON)
+	assert_gt(actor.sprite.icon_number, 0)
+	assert_true(Gen2WorldCollision.is_walkable(map.collision_at(actor.cell.x, actor.cell.y)))
+	closed.player_cell = actor.cell + Vector2i.RIGHT
+	closed.player_facing = Gen2WorldSprite.FACING_LEFT
+	var talk: Array = closed.interact()
+	assert_eq(String(talk[0]["event"]["type"]), "text")
+	var fight: Array = closed.interact()
+	var values: Dictionary = fight[0]["event"]["request"]["values"]
+	assert_eq(int(values["pokemon"]), 151)
+	closed.finish_edition_static(false)
+	assert_false(state.complete_static_is_cleared("mew"))
+	closed._load_objects()
+	assert_eq(_edition_objects(closed).size(), 1)
+	closed.player_cell = actor.cell + Vector2i.RIGHT
+	closed.player_facing = Gen2WorldSprite.FACING_LEFT
+	assert_eq(String(closed.interact()[0]["event"]["type"]), "text")
+	closed.interact()
+	closed.finish_edition_static(true)
+	assert_true(state.complete_static_is_cleared("mew"))
+	var restored := Gen2WorldState.from_dict(state.to_dict())
+	assert_true(restored.complete_static_is_cleared("mew"))
+	closed._load_objects()
+	assert_eq(_edition_objects(closed).size(), 0)
+	var ilex: Gen2WorldMap = data.world_map_named(&"ILEX_FOREST")
+	var early := Gen2WorldState.new()
+	var hidden := Gen2WorldAPI.new(data, ilex, Gen2WorldTileset.new(), Vector2i(1, 0), early, rules)
+	assert_eq(_edition_objects(hidden).size(), 0, "Celebi stays hidden before the Hive Badge")
+	early.set_engine_flag(Gen2WorldState.ENGINE_HIVEBADGE, true)
+	hidden._load_objects()
+	assert_eq(_edition_objects(hidden).size(), 1)
+	var gates := Gen2WorldState.new()
+	assert_false(Gen2CrystalComplete.gate_open(gates, "articuno"))
+	assert_false(Gen2CrystalComplete.gate_open(gates, "zapdos"))
+	assert_false(Gen2CrystalComplete.gate_open(gates, "moltres"))
+	assert_false(Gen2CrystalComplete.gate_open(gates, "mewtwo"))
+	gates.set_engine_flag(Gen2WorldState.ENGINE_GLACIERBADGE, true)
+	assert_true(Gen2CrystalComplete.gate_open(gates, "articuno"))
+	for flag: int in Gen2WorldState.BADGE_ENGINE_FLAGS.slice(0, 8):
+		gates.set_engine_flag(flag, true)
+	assert_true(Gen2CrystalComplete.gate_open(gates, "zapdos"))
+	assert_false(Gen2CrystalComplete.gate_open(gates, "moltres"))
+	for flag: int in Gen2WorldState.BADGE_ENGINE_FLAGS:
+		gates.set_engine_flag(flag, true)
+	assert_true(Gen2CrystalComplete.gate_open(gates, "moltres"))
+	assert_false(Gen2CrystalComplete.gate_open(gates, "mewtwo"))
+	gates.set_hall_of_fame(true)
+	assert_true(Gen2CrystalComplete.gate_open(gates, "mewtwo"))
+	RomCache.clear(directory)
+
+
+func _edition_objects(world: Gen2WorldAPI) -> Array:
+	var out: Array = []
+	for object: Gen2WorldObject in world.objects:
+		if object.sprite != null and object.sprite.sprite_type == Gen2WorldSprite.TYPE_MON_ICON:
+			out.append(object)
+	return out
 
 
 func _write_cache() -> String:
@@ -168,6 +246,10 @@ func _write_cache() -> String:
 	RomCache.write_json(RomCache.world_maps_path(directory), [
 		_map(2, 5, collision), _map(3, 52, collision), _map(19, 2, collision),
 	])
+	var icons := PackedByteArray()
+	icons.resize(Gen2Layout.SPECIES_COUNT)
+	icons.fill(1)
+	RomCache.write_indices(RomCache.mon_menu_icons_path(directory), icons)
 	RomCache.write_json(RomCache.manifest_path(directory), {
 		"format_version": RomCache.FORMAT_VERSION,
 		"complete": true,

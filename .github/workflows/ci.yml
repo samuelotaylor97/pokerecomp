@@ -137,6 +137,12 @@ jobs:
           GODOT_CAP: 30
         run: tools/ci_godot.sh ~/godot/godot --headless --path . --quit-after 30
 
+      - name: Crystal Complete live coverage
+        if: steps.selection.outputs.run == 'true' && startsWith(matrix.shard, '1/')
+        env:
+          GODOT_CAP: 180
+        run: GODOT_BIN="$HOME/godot/godot" tools/crystal_complete_gate.sh /tmp/crystal-complete-251.md
+
   tests:
     name: editor scan and GUT
     needs: [plan, gut]

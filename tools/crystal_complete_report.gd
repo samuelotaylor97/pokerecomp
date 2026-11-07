@@ -13,7 +13,7 @@ func _initialize() -> void:
 	var data := GameData.open(RomRegistry.CRYSTAL)
 	if data == null:
 		_write(args[0], _blocked(registry))
-		quit(1)
+		quit(2)
 		return
 	var rules := Gen2Rules.new()
 	rules.content_edition = Gen2Rules.EDITION_COMPLETE
@@ -43,7 +43,8 @@ func _body(registry: String, data: GameData, result: Dictionary) -> String:
 	lines.append("PC candidate SHA-1: `%s`" % SUPPLIED_SHA1)
 	lines.append("Match: %s" % ("yes" if registry == SUPPLIED_SHA1 else "no"))
 	lines.append("Cache: `%s` `%s`" % [data.id, data.sha1])
-	lines.append("Proven: %s" % ("yes" if bool(result.get("proven", false)) else "no"))
+	lines.append("Proven from this cache: %s" % ("yes" if bool(result.get("proven", false)) else "no"))
+	lines.append("A yes means every species 1-251 was read back from the open cache after the edition was applied: wild, fishing, swarm, tree, contest and roam rows, gifts and trades the story can reach, one member of each starter or fossil choice, and an evolution only when its previous form is obtained and a required stone or held item is sold. A static counts only when that same closure reaches its map and earns its gate. Celebi needs the Hive Badge. Articuno needs the Glacier Badge. Zapdos needs eight badges. Moltres needs all 16. Mew and Mewtwo need all 16, and the actor also waits for the Hall of Fame. The story line is a vanilla progression check on a fresh open. The SHA-1 line is identity only. Exit 0 is the only all-251 claim. A declared placement list is not one.")
 	lines.append("Story still finishes: %s" % ("yes" if bool(result.get("story_ok", false)) else "no"))
 	var reason := String(result.get("story_reason", ""))
 	if not reason.is_empty():

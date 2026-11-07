@@ -65,16 +65,29 @@ static func _wild(data: GameData, got: Dictionary, repeatable: Dictionary) -> vo
 
 
 static func _statics(data: GameData, got: Dictionary, repeatable: Dictionary) -> void:
-	var filter := _filters_maps(data)
+	if not _filters_maps(data):
+		return
+	var scratch: Dictionary = Gen2WorldProgression._prepared(data, {})
+	if scratch.is_empty():
+		return
+	var state: Dictionary = Gen2WorldProgression._run(scratch)
+	var badges: Dictionary = state["badges"]
 	for row: Dictionary in data.edition_statics:
 		var group := int(row.get("group", -1))
 		var number := int(row.get("number", -1))
-		if filter and not Gen2WorldProgression.map_reached(data, group, number):
-			data.edition_landing_errors.append(
-				"%s is not reached in one save" % String(row.get("map", ""))
-			)
+		var map_name := String(row.get("map", ""))
+		var static_id := String(row.get("id", ""))
+		var place := Gen2WorldStory.place(Vector2i(group, number))
+		var reached := Gen2WorldProgression._placed(state, {
+			"place": place, "key": str(place), "graph": -1,
+		})
+		if not reached:
+			data.edition_landing_errors.append("%s is not reached in one save" % map_name)
 			continue
-		var label := "static %s %s" % [String(row.get("id", "")), String(row.get("map", ""))]
+		if not Gen2CrystalComplete.closure_gate(static_id, badges):
+			data.edition_landing_errors.append("%s gate is not earned in one save" % static_id)
+			continue
+		var label := "static %s %s" % [static_id, map_name]
 		_mark(int(row.get("species", 0)), got, repeatable, label, false)
 
 

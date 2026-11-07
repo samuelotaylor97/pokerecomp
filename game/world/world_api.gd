@@ -171,6 +171,7 @@ var data: GameData = null
 ## produced unreproducible, which is the whole reason it belongs to the run.
 var rules: Gen2Rules = null
 var _edition_static_id: String = ""
+var _edition_static_prompted: String = ""
 ## The landmark whose one Nuzlocke encounter is open, or -1, read by
 ## [method Gen2WorldPartyHost.capture_wild]. Not snapshotted.
 var nuzlocke_area_open: int = -1
@@ -4961,8 +4962,10 @@ func load_object_masks() -> void:
 func finish_edition_static(caught: bool) -> void:
 	var static_id := _edition_static_id
 	_edition_static_id = ""
+	_edition_static_prompted = ""
 	if caught and state != null and not static_id.is_empty():
 		state.clear_complete_static(static_id)
+		_load_objects()
 
 
 ## Starts the first active scripted object in the cell the player is facing.
@@ -9292,7 +9295,27 @@ func _load_objects(carry_presentation: bool = false) -> void:
 		else:
 			object.flag_hidden = object.masked_hidden(state)
 		objects.append(object)
+	_append_edition_statics()
 	set_object_time(object_hour, object_time_of_day)
+
+
+func _append_edition_statics() -> void:
+	if data == null or rules == null or not rules.is_complete() or data.id != RomRegistry.CRYSTAL:
+		return
+	if current_map == null:
+		return
+	for row: Dictionary in data.edition_statics:
+		if int(row.get("group", -1)) != current_map.group \
+				or int(row.get("number", -1)) != current_map.number:
+			continue
+		if not Gen2CrystalComplete.gate_open(state, String(row.get("id", ""))):
+			continue
+		var object := Gen2CrystalComplete.make_object(data, row, objects.size())
+		if object == null:
+			continue
+		object.active = true
+		object.flag_hidden = false
+		objects.append(object)
 
 
 ## The source changeblock macro receives walk-cell coordinates. The cartridge adds
